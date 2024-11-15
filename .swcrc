@@ -1,0 +1,24 @@
+// .swcrc
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "decorators": true
+    },
+    "target": "es2022",
+    "keepClassNames": true,
+    "transform": {
+      "legacyDecorator": true,
+      "decoratorMetadata": true
+    },
+    "baseUrl": "src",
+    "paths": {
+      "@/*": ["*"]
+    }
+  },
+  "sourceMaps": true,
+  "module": {
+    "type": "commonjs",
+    "noInterop": true
+  }
+}

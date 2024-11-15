@@ -1,0 +1,640 @@
+:source-highlighter: highlightjs
+:highlightjsdir: highlight
+:highlightjs-languages: bash, typescript, javascript, html, css, scss, markdown
+:lang: ja
+:doctype: book
+:toc: left
+:toclevels: 4
+:toc-title: 目次
+:sectnums:
+:sectnumlevels: 4
+:sectlinks:
+:icons: font
+:y: icon:check[role="green"]
+:n: icon:times[role="red"]
+:m: icon:minus[role="blue"]
+:imagesdir: images
+:imagesoutdir: images
+:icons: font
+:example-caption: 例
+:table-caption: 表
+:figure-caption: 図
+:docname: = ACTS Nest.js 開発ガイド
+:chapter-label:
+:experimental:
+
+= ACTS Nest.js 開発ガイド
+
+== はじめに
+
+当ガイドはACTS Nest.jsにおける開発ガイドラインを示すものである。
+
+== ユースケース
+
+=== 当アーキテクチャについて
+
+AWS Fargate/GCP Cloud Run/Azure Container Instances向けに作成された、Node.jsによるServerless Container向けアーキテクチャである。
+
+=== Node.jsについて
+
+Node.jsとは大量のリクエストを高速にさばくために作られた、GoogleのV8エンジン上で動作するJavascriptのサーバーサイドアプリケーション構築プラットフォームである。 +
+大規模なシステムの大量のリスエストを高速にさばく必要がある部分（REST-APIやメッセージングの部分）などで使われる。
+
+Apache(Tomcat)+Javaなどのスレッドモデルと違い、大量のリクエストをさばけるように、イベントループをNode.jsでは採用している。
+
+==== スレッドモデルとは
+
+1つのリクエストに対して1つのスレッドがたてられる。追加でリクエストが来た場合、更にスレッドが立てられる。 +
+スレッドはメモリを消費するので大量のリクエストがきた場合はメモリを使い切ってしまい、スレッドが立てられず、処理が回らなくなってしまう。
+
+==== イベントループとは
+
+メインのスレッドが1つのみになる。1つのスレッドで複数のリクエストをさばくことができる。キューでリクエストを確認したら確認した順番にバックグラウンドの処理に回される。スレッドモデルと違い、リクエストの処理を待つ必要がないので大量の処理をさばくことができる。 +
+注意点としては処理が終わる順番がわからないこと。また、プログラミング上ループをブロックしないように記述する、所謂ノンブロッキングにする必要がある。
+
+=== ブロッキングとノンブロッキング
+
+==== ブロッキング（同期処理）
+
+Node.jsでこのような書き方をしてしまうと、メインのスレッドは1つなので、処理が終わるまですべてのリクエストをブロックしてしまう。
+
+[source, typescript]
+----
+// hogeを10000000000回コンソールに出す
+for (let i = 1; i <= 10000000000; i++) {
+  console.log('hoge');
+}
+----
+
+==== ノンブロッキング（非同期処理）
+
+これを避けるため、`setTimeout/setInterval` 、 `Promise` 、 `async/await` を利用し、非同期処理に逃す。 +
+ModernなAPIとしては、 https://nodejs.org/api/stream.html[Stream] や https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncIterator[asyncIterator] が用意されている。I/Oを扱う場合、Iteration可能なオブジェクトのループはStream/asyncIteratorを利用すること。
+
+[source, typescript]
+----
+// hogeを10000000000回コンソールに出す
+let i = 1;
+const timeout = setInterval(() => {
+  if (i == 10000000000) clearInterval(timeout);
+  console.log('hoge');
+  i++;
+}, 0);
+----
+
+=== 公式のドキュメント
+
+公式のドキュメントも参照し、理解した上で利用すること。特にブロッキングとノンブロッキング処理については、ファイル操作周りについての重要な事項が記載されいてるため必読である。
+https://nodejs.org/ja/about[Node.jsとは] +
+https://nodejs.org/ja/docs/guides/blocking-vs-non-blocking[Node.jsのブロッキングとノンブロッキングについて]
+
+=== このアーキテクチャが向いているシステム
+
+- 処理が非常に短時間でイベント処理が重要なアプリ。例えば、チャットアプリなどの大量のアクセスのあるリアルタイムなネットワークプログラミング。
+- コスト控えめのシングルCPUのインスタンス。シングルCPUの環境化でもその性能を十分使い切れるため、比較的性能の小さいサーバ上で大きなパフォーマンスを発揮できる。逆にこのアプリを動かす上において大量のマルチコアCPUを使った高級なインスタンスを使うのはアンチパターンである。それよりインスタンスを増やしたほうが良い。
+
+=== このアーキテクチャが向かないシステム
+
+- DBのコネクションプールの共有化については、他のソリューションを組み合わせないと不可能である。DBがボトルネックになる事が見込まれるサービスには、このアーキテクチャ単体で対応するのは不向きである。
+- CPU負荷の高い処理。CPUリソースを大量に必要とするJavaScriptの処理を行うとイベントループが回らない状態になり、イベントハンドリングが行えない状態に陥る。このため、CPU処理が大量に必要とされるアプリではにNode.jsの利用は向かない。大規模なファイル操作など。1万件くらいあるDBのレコードを全部画面に返す、大規模なJSONを受け取るなどの処理も不向きである。JSONへのSerializeやParseでCPUが詰まる。
+- マルチCPUのインスタンス、マルチスレッドプログラミング。Node.jsは基本的にシングルプロセス・シングルスレッドで動作する。新しいバージョンのNode.jsにはクラスターモジュールが実装されそれらも解決可能となっているが、本アーキで利用する場合、処理によってはその分だけコネクションプールを張るためアンチパターンである。
+
+== 開発の初期設定、ビルド手順、VSCodeでのデバッグ方法など
+
+gitリポジトリの README.md を参照
+
+== ディレクトリ構成
+----
+├── src
+│   ├── common
+│   │   ├── decorators
+│   │   │   └── xxxxx.decorator.ts
+│   │   ├── filters
+│   │   │   └── global-exception.filter.ts (グローバルエラーハンドリング)
+│   │   ├── guards
+│   │   │   └── xxxxx.guard.ts
+│   │   ├── interceptors
+│   │   │   └── xxxxx.interceptor.ts
+│   │   ├── middleware
+│   │   │   └── xxxxx.middleware.ts
+│   │   ├── providers (全体で使用するproviderはここに定義)
+│   │   │   ├── xxxxx.service.ts
+│   │   │   └── xxxxx.strategy.ts (認証用)
+│   │   └── utils (injectしないでつかうstaticメソッドなど定義)
+│   │       └── xxxxx.util.ts
+│   ├── modules (APIはここにエンドポイント毎にフォルダ作成して定義)
+│   │   ├── informationなど機能別に作成 (各フォルダにmodule/controller/serviceの3ファイルを定義)
+│   │   │   ├── xxxxx.controller.ts
+│   │   │   ├── xxxxx.module.ts
+│   │   │   └── xxxxx.service.ts
+│   │   ├── app.module.ts
+│   │   ├── auth.module.ts (認証まわりを定義)
+│   │   └── global.module.ts (全体で使うproviderを定義)
+│   ├── resources
+│   │   │── code (共通で使用するコードを定義)
+│   │   │   └── code.ts
+│   │   │── dtos (リクエストやレスポンスのモデルを定義)
+│   │   │   ├── informationなど機能別に作成 (modules直下のフォルダ構成と同様)
+│   │   │   │   ├── xxxxx-request.dto.ts
+│   │   │   │   └── xxxxx-response.dto.ts
+│   │   │   └── xxxxx.dto.ts (共通でつかうものなどはdtos直下)
+│   │   │── entities (DBから取得するモデルを定義)
+│   │   │   └── informationなど機能別に作成 (modules直下のフォルダ構成と同様、一部DBのテーブル名に合わせている)
+│   │   │       └── xxxxx.entity.ts
+│   │   └── repositories (DB操作を定義)
+│   │       ├── sql (sql文記載する部分はここに定義、テーブルとCRUD単位でファイル分割)
+│   │       │   └── xxxxx-[insert,select,update,delete].sql.ts
+│   │       └── xxxxx.repository.ts (トランザクション制御やエラーハンドリングは基本こちらで行う)
+│   ├── types
+│   │   └── index.d.ts (型定義ファイル)
+│   └── main.ts (エントリーポイント)
+└── tests (テストコード※検討中)
+    ├── unit (単体テスト)
+    │   └── xxxxx
+    └── app.e2e-spec.ts (e2eテスト)
+----
+
+== アーキテクチャ概要
+
+利用しているフレームワーク「 NestJS 」については以下のサイトを確認すること
+
+- https://docs.nestjs.com/[NestJS 公式（English）]
+- https://zenn.dev/kisihara_c/books/nest-officialdoc-jp/viewer/introduction[NestJS 公式 - 日本語訳]
+- https://zenn.dev/morinokami/articles/nestjs-overview#%E5%9F%BA%E7%A4%8E%E7%9A%84%E3%81%AA%E6%A6%82%E5%BF%B5%E3%81%AE%E5%9B%B3%E8%A7%A3[NestJS 基礎的な概念の図解]
+
+=== NestJSとは
+
+ベースアーキのNestJSはコード構造がAngularのお作法に近く、moduleの記述が必要など若干冗長な記載にはなる印象だが、それを除くとREST APIの開発で必要となる各種実装がかなり簡易に書けるため、慣れてくればサクサクとAPIを量産できる。開発者は30分ほどNestJSの勉強して実装に臨むと良い。参考リンクは後述。（Request/Responseの自動マッピング、入力バリデーション、ルーティング、エラー処理、など）
+
+== 開発
+
+=== 開発の流れ
+
+全体的な開発の流れは、現状プロジェクトが保持しているリソースによって幾つかのアプローチ方法がある。
+
+==== 既にDB/定義書やDBスキーマ管理ツール存在しているか？
+
+ある場合、<<既存のDBからのスキーマ定義作成,既存のDBからのスキーマ定義作成>>を参考に `prisma.schema` を作成。 +
+今後も外部のツールにて管理するか、このプロジェクト内で管理するかはプロジェクト側に委ねられるが、ER図の生成において論理名表示ができないなど、ドキュメンティングに難が有ることに注意する。 +
+<<DBのMigration,Migration機構>>はとても優れているため、それだけ利用しても良い。
+
+ない場合は<<Prismaのスキーマ定義作成,Prismaのスキーマ定義作成>>を参考に`prisma.schema` を作成。
+
+==== OpenAPI定義が既に存在するか？
+
+ある場合、<<OpenAPI定義からNest.jsのAPI自動生成,OpenAPI定義からNest.jsのAPI自動生成>>を参考。
+
+ない場合、<<OpenAPI定義ファイルの出力,OpenAPI定義ファイルの出力>>を参考に、ソースコード上にOpenAPIの定義を記述しつつ開発を進める。 +
+つまりソースコードをOpenAPIドキュメントとする。
+
+==== それ以降
+
+<<REST API の開発方法,REST API の開発方法>>を参考に実装していく。
+
+=== 認証と認可
+
+SkeletonではJWTアクセストークンやリフレッシュトークンの発行をAPI Gatewayではなく、本REST APIの中で実装している。
+そのためのソースコードをあえて残しているが、プロジェクトのアーキテクチャブループリントに合わせて実装を変えること。
+
+NOTE: 例）/src/common/guard/jwt-auth.guard.ts, /src/common/providers/jwt.service.ts
+
+Skeletonでは ID/PW の認証は別の SAML 認証システムで実装されていたため、ログイン API では認証処理は実施していない。
+SAML 認証のやり取りについてはサニタイズにて削除しており、JWT トークンの発行のみサンプルコードとして残してある。
+JWT トークン発行処理は GCP に依存しすぎているのと、業務要件でも変わる部分なので、このままの流用はほぼできないと考えた方が良い。
+
+NOTE: 例）/src/modules/login/login.controller.ts
+
+認可については、認可を管理する DB テーブルにて独自実装を用意しているが、プロジェクトの状況に応じて。（所属部署 or ユーザと CRUD 操作）
+以下のコードのあたりで認可チェックを行い、認可されてないユーザの場合は 403 エラーを返す様にしている。
+
+NOTE: 実装：/src/common/guard/require-role.guard.ts, /src/common/providers/auth.service.ts
+
+=== ロギング
+
+GCPのログエクスプローラ(Cloud Logging)/AWSのCloudWatchにて見やすい形で標準出力にOutputするようにしている。
+
+NOTE: 実装：/src/common/providers/cloud-logger.service.ts
+
+また本 REST API の標準実装では本番環境においても SQL の実行ログをそのまま出力している。これは某開発プロジェクトでは SQL 内に個人情報が混入することがあまり無いため、障害調査の簡便性を優先したためである。なお一部の項目は個人情報が含まれるため、項目を指定してログ出力のみをマスクしている。
+PrismaService.setMaskedValueIndexes にて SQL 発行する際に、ログマスクするカラムを指定可能。ただしこれは直Query実行時のみ有効となる。
+
+NOTE: 実装：/src/common/providers/prisma.service.ts
+
+=== 外部APIの呼び出し
+
+サンプルコードは存在しないが、本REST APIからさらに外部のAPI呼び出しを行う場合は `@nestjs/axios` を利用する。
+https://docs.nestjs.com/techniques/http-module[公式ドキュメント]を参照。
+
+=== みなし日
+
+テスト環境においてシステム日付ではなく指定した日付でテストを行いたいニーズがある。
+フロントのWebやモバイルアプリが端末日付ではなくサーバ日付を使用するよう実装される前提で、本REST APIからはInterceptorでHTTP Response HeaderのX-Timestampにサーバ日付を返すようになっている。（YYYY-MM-DDTHH:mm:ss形式）
+
+本番環境ではシステムサーバ日付をセットするが、みなし日でテストを行いたい場合は検証環境の GCP コンソールから Cloud Run の環境変数: X_TIMESTAMP=YYYYMMDD をセットすることでみなし日として変更ができる。
+
+なお HH:mm:ss は変更できず必ずシステム時刻になるので、時刻の閾値をテストしたい場合は実時間で行うようにすること。
+
+NOTE: 実装：/src/common/interceptors/timestamp.interceptor.ts
+
+
+=== Database
+
+==== Timezone
+
+RDB(Cloud SQL/RDS)ではデフォルトでは UTC 表示になるのでタイムゾーンを設定する必要がある。 +
+コンテナは Dockerfile で環境変数 TZ にて設定する。  +
+Cloud SQL/RDS は `ALTER DATABASE <db name> SET timezone TO 'Asia/Tokyo';` を実行して設定する。
+
+MySQLでどうしても日付をJSTで記録したい場合、以下に気をつけること。 +
+https://zenn.dev/gibjapan/articles/04dd5afde1ca79
+
+==== DBコネクションプーリング
+
+本アーキテクチャはコンテナ型のサーバレス実行環境上にホストされる想定である。これによりアクセスのラッシュが発生しても自動スケールして処理をさばくことが可能となる。
+
+ラッシュが起きると経験上はバックエンドの DB スペックが障害点としてボトルネックになりがちではあるが、API レイヤーでも DB コネクションプーリングを行い、DB 接続コストを抑制する工夫を行うべきである。本アーキはPrismaの機能により1インスタンス内のコネクションプーリングは実装済み。（AWS Fargate でも同じ）
+
+NOTE: 実装：/src/common/providers/database.service.ts
+
+Cloud Run インスタンスをまたぐ形の DB コネクションプーリングも検討したが、実装難易度が高いのと、あまり効果も見込まれないためインスタンス単位のプーリングとした。なお Cloud Run は 1 インスタンスあたり標準で 80 同時アクセスをさばくが、某プロジェクトでは API 処理がサクサクで CPU にも余裕があったので、本番運用 1 ヶ月後に 80→700 アクセスに増やした。これによりラッシュ時のスケールアップによるインスタンス同時立ち上げも抑制され課金コストも抑えられた（ラッシュ時最大 60 インスタンスだったのが、ラッシュ時でも最大 10 インスタンス程度となった）。エンドユーザ側の体感時間も 1 秒未満のまま変わらずサクサクのまま。また平常時は 1-3 インスタンスで十分にさばけている。
+
+話は戻るが、サーバレス実行環境のオートスケール性能はかなり高いため、DB がボトルネックになりがちという点はインフラ設計上考慮すること。リリース前にラッシュとボリュームのパフォーマンステストを十分に実行すること。
+
+Connection Poolingのparameter調整のTipsは https://www.prisma.io/docs/guides/performance-and-optimization/connection-management[Prismaの公式ドキュメント] を参照。
+
+サーバーレスアーキテクチャでどうしてもConnection Poolingを共有化したい場合は、Postgresqlであれば https://aws.amazon.com/jp/blogs/database/set-up-highly-available-pgbouncer-and-haproxy-with-amazon-aurora-postgresql-readers/[PgBouncer]、MySqlであれば https://aws.amazon.com/jp/blogs/news/how-to-use-proxysql-with-open-source-platforms-to-split-sql-reads-and-writes-on-amazon-aurora-clusters/[ProxySQL]の利用を検討すること。
+
+==== Prisma（ORM）
+
+利用しているORMフレームワーク「 Prisma 」については以下のサイトを確認すること。基本的な利用方法については `README.md` に記載されているため割愛する。
+
+- https://www.prisma.io/docs[Prisma 公式（English）]
+- https://www.prisma.io/docs/reference/database-reference/supported-databases[対応しているデータベース]
+- https://zenn.dev/optimisuke/articles/387b30c547ac54[Prisma を使った効率的なバックエンド開発ワークフロー]
+
+Nest.jsでのPrismaClientは `src/common/providers/prisma.service.ts` に実装されている。
+
+===== Prismaのスキーマ定義作成
+
+Prisma が認識する Schema 情報は `prisma/schema.prisma` にて定義される。
+これは Prisma 独自のフォーマットとなる。 https://www.prisma.io/docs/concepts/components/prisma-schema[公式の仕様書をベース] に記載する。
+
+`pnpm prisma migrate dev --name first-migration` で `prisma/schema.prisma` を元に DB の Schema 情報が生成される。
+実行された SQL は、`prisma/migrations` フォルダに日付ごとに管理される。
+
+====== 既存のDBからのスキーマ定義作成
+
+`pnpm prisma db pull` で `prisma/schema.prisma` が自動生成される。
+
+===== TransactionとRollback
+
+`PrismaClient.$transaction` でTransactionを開始する。例外が発生した場合、自動的にRollbackが実施される。 +
+詳細な利用方法は https://www.prisma.io/docs/guides/performance-and-optimization/prisma-client-transactions-guide#transaction-api[公式ドキュメント] を参照
+
+===== ORM vs RawQuery
+
+Prismaは https://www.prisma.io/docs/concepts/components/prisma-client/crud[ORM] と https://www.prisma.io/docs/concepts/components/prisma-client/raw-database-access#raw-query-type-mapping[RawQuery] のどちらも対応している。 +
+何か理由がない限りは基本的にORMを利用すること。RawQueryを利用する場合はドキュメントの注意事項をよく確認すること。
+
+===== 複数のDB接続
+
+https://github.com/prisma/prisma/issues/2443#issuecomment-630679118[可能] であるが、現在このアーキはPrismaServiceを1つしか持っていないため、これを継承した別のサービスを作成すること。
+
+===== Repositoryを含むUTの構築
+
+https://www.npmjs.com/package/prisma-mock[Prisma Mock] を利用することでDBのレスポンスをモッキングすることができる。
+
+===== DBのMigration
+
+`prisma/schema.prisma` に記載されている内容と、現行の接続先のDBのスキーマ情報を比較し、差分をDDLとして出力し、DBスキーマのマイグレーションを自動的に実施する機能がPrismaには用意されている。 +
+https://www.prisma.io/docs/guides/migrate/developing-with-prisma-migrate[公式ドキュメント]。
+
+- マイグレーションファイルの確認
+
+以下コマンドにてマイグレーション対象のDDLが `prisma/migrations` フォルダに配置される。
+[source, bash]
+----
+$ pnpm prisma migrate dev --create-only --name {マイグレーション名}
+----
+
+- マイグレーションの実施
+
+以下コマンドにてマイグレーション対象のDDLが `prisma/migrations` フォルダに配置され、かつそのDDLが自動実行される。s
+[source, bash]
+----
+# 本番向け
+$ pnpm prisma migrate deploy --name {マイグレーション名}
+# 開発環境向け
+$ pnpm prisma migrate dev --name {マイグレーション名}
+----
+
+これら実際に実施されたDDLと、 `prisma/schema.prisma` をgitに記録しておくことで、マイグレーションのログを作る。
+
+- マイグレーションの切り戻し
+
+`prisma/schema.prisma` をマイグレーション前の状態に切り戻し、 `pnpm prisma migrate {deploy/dev}` コマンドを実行することで、切り戻し用のDDLが出力・実行される。 +
+https://www.prisma.io/docs/guides/migrate/developing-with-prisma-migrate/generating-down-migrations[公式ドキュメント]
+
+===== 各種Generatorの利用
+
+`prisma/schema.prisma` にgeneratorの定義を行うことで、 `pnpm run prisma:gen` 実施時にスキーマ定義から様々な自動生成を行う事ができる。 +
+https://www.prisma.io/docs/concepts/components/prisma-schema/generators[公式ドキュメント]
+
+アーキとして標準で設定されているものは以下の通りである。
+
+- https://mermaid.js.org/[Mermaid] 形式でのER図出力
+- NestJSのDTO出力
+
+== REST API の開発方法
+
+最初の 1 本目は以下の手順通りに CLI にて自動作成すると良いが、2 本目以降はコピペ＆リネームで作る方が早い場合もある。
+
+=== 必要な schematic
+
+- module
+- controller
+- service
+- dto
+- entity
+- repository, sql
+
+==== modules 配下に module/controller/service ファイルを CLI で作成する
+
+[コマンドの詳細はこちら](https://docs.nestjs.com/cli/usages)
+
+- API のエンドポイント/XXX/YYY ～のエントリポイント（XXX）の単位で作成する
+
+[source, bash]
+----
+nest g mo <name> modules
+nest g co <name> modules
+nest g s <name> modules
+----
+
+例）お知らせ機能 /information(/XXX)の API 作成時
+
+[source, bash]
+----
+nest g mo information modules
+nest g co information modules
+nest g s information modules
+----
+
+==== resources 配下に必要に応じて dto/entity/repository を CLI で作成する
+
+- `<name>`には機能単位で
+
+[source, bash]
+----
+nest g cl <name>-request.dto resources/dtos/xxx
+nest g cl <name>-response.dto resources/dtos/xxx
+nest g cl <name>.entity resources/entities/xxx
+nest g pr <name>.repository resources/repositories
+nest g pr <name>-<crud>.sql resources/repositories/sql
+----
+
+例）お知らせ機能 /information(/XXX)の API 作成時
+
+[source, bash]
+----
+nest g cl information-list-request.dto resources/dtos/information
+nest g cl information-list-response.dto resources/dtos/information
+nest g cl information-list.entity resources/entities/information
+nest g pr information.repository resources/repositories
+nest g pr information-select.sql resources/repositories/sql
+----
+
+==== 自動作成されたテストコードは tests/unit 配下に src と同様のフォルダ構成を作成して移動させる
+
+- import 文のパスは変更しておく
+
+==== module は基本的には providers に使用する class を追加していくだけ
+
+- controller,service は CLI が追加済みだが、パス部分が相対パスになっているので `@/~` に変更する
+- repository,sql は手動追加
+
+==== controller はルーティングやパラメータの指定を行い、詳細な処理は service に定義する
+
+- パラメータの validation はパラメータプロパティを持つ dto を作成しアノテーションを指定することで実現する
+
+===== OpenAPI定義ファイルの出力
+
+- controller,dtoに対して、 https://docs.nestjs.com/openapi/types-and-parameters[OpenAPI] 向けのパラメータを設定することで、 http://localhost:3000/api[デバッグ時に自動起動するSwagger UI] に自動的にAPIの仕様を反映させることができる。 +
+これにより、最初にAPI設計を行うのではなく、コーディングからAPI設計に入ることができる。
+
+OpenAPI定義のPDF化が必要な場合は https://github.com/mrin9/RapiPdf[RapiPdf] を利用する。
+
+==== service では repository から取得したデータを加工して返却する
+
+- repository,sql ではデータベース操作関連を記述 +
+  SQL は pg ライブラリをフル活用して SQL インジェクションが入り込まない様に、綺麗な JOIN となるように記載すること
+- entity で SQL で受け取る項目を定義する
+- serialization(キャメルケースに変換など)は controller ではなく service や dto などで行う、
+
+=== .env file
+
+`.env` ファイルはローカル開発時にのみ使用する。 +
+GCP 環境では GCP コンソールから Cloud Run の環境変数として設定する、環境変数からは秘密鍵など SecretManager で管理しているものも参照している
+
+=== GraphQL
+
+サンプルは用意されていないが、 https://docs.nestjs.com/graphql/quick-start[Nest.jsは公式で対応している。]
+
+=== gRPC
+
+サンプルは用意されていないが、 https://docs.nestjs.com/microservices/grpc[Nest.jsは公式で対応している。]
+
+=== WebSocket/Socket.io
+
+サンプルは用意されていないが、 https://docs.nestjs.com/websockets/gateways[Nest.jsは公式で対応している。]
+
+=== Kafka Client
+
+サンプルは用意されていないが、 https://docs.nestjs.com/microservices/kafka[Nest.jsは公式で対応している。] +
+ProducerとConsumerどちらでの動作も可能であり、Streamsも利用できるが、Node.jsの特性を考慮した上で利用すること。
+
+=== PDF出力
+
+TODO:
+
+=== GCP
+
+==== GCP へのデプロイ手順(Cloud build)
+
+GCP 開発環境へのデプロイ(環境変数 ORIGIN に「,<http://localhost:3000」を追加するとデプロイ失敗するので権限ある人がコンソールから追加する)>
+
+- 実行する際プロジェクト直下
+
+[source, bash]
+----
+gcloud builds submit --config=./build/run_app_dev.yaml --project=(GCP Project Name);
+----
+
+検証環境へのデプロイ
+
+- 実行する際プロジェクト直下
+
+[source, bash]
+----
+gcloud builds submit --config=./build/run_app_stg.yaml --project=(GCP Project Name);
+----
+
+本番環境へのデプロイ
+
+- 実行する際プロジェクト直下
+
+[source, bash]
+----
+$ gcloud builds submit --config=./build/run_app_prd.yaml --project=(GCP Project Name);
+----
+
+==== デプロイ後、タグを設定する
+
+1. デプロイした Git の断面に以下のルールでタグを設定する
+
+- 本番環境 `x.y.z` 例）1.0.0
+- 検証環境 `stg_(YYYYMMDD)` ※同日に複数回デプロイした場合は `stg_(YYYYMMDD)_(連番)`
+- 開発環境 タグ不要
+
+2. GCP の[Artifact Registry](https://console.cloud.google.com/artifacts/docker/)から配置された資源を探し以下のルールでタグを設定する
+
+- 本番環境 v`x.y.z` 例）v1.0.0
+- 検証環境 `stg_(YYYYMMDD)` ※同日に複数回デプロイした場合は `stg_(YYYYMMDD)_(連番)`
+- 開発環境 タグ不要
+
+==== 注意事項
+
+log 参照権限がないのでコマンド実行後に下記のエラーが表示されるが無視でよい。 +
+Cloud build のコンソールから実行結果を確認する。 + +
+
+```
+ERROR: (gcloud.builds.submit)
+The build is running, and logs are being written to the default logs bucket.
+This tool can only stream logs if you are Viewer/Owner of the project and, if applicable, allowed by your VPC-SC security policy.
+```
+
+==== GCP へのデプロイ手順(VSCode、開発環境のみ)
+
+必須：VSCode 拡張機能「CloudCode」、Python、Google Cloud SDK、Docker desktop
+
+1. Docker desktop を起動しておく (Docker desktop は現状有料なのでライセンス費用に注意。代替の https://rancherdesktop.io/[Rancher Desktop] の導入も検討する。)
+2. VSCode 下部にあるステータスバーから CloudCode のメニュー「Deploy to Cloud Run」を選択する
+3. 該当の GCP 環境に接続していることを確認する
+4. 設定内容を確認し、Deploy ボタンをクリックする
+
+- Advanced Settings にある環境変数は Run の現在の環境変数の設定を取得してくれる
+- SecretManager の部分は変な状態で取得されるので削除しておく（Run 上では前回状態引き継がれるので問題なし）
+- 環境変数 ORIGIN に「,<http://localhost:3000」を追加するとデプロイ失敗するので削除して後からコンソールで追加する>
+
+==== Database 接続先
+
+Cloud SQL Proxy を利用して接続するので、 `.env` にある DB 接続先は Windows であれば変更不要だが、MAC の場合は PC 毎にパスが違うので各々修正。
+
+==== テストユーザの ID トークン
+
+GCP 環境では SecretManager で管理している key を使用して ID トークンを作成し、同 key を使用して ID トークンの検証を行う。 +
+ソースコードでいうと REFRESH_TOKEN_PRIVATE_KEY という環境変数で同 key を参照し、jwt.strategy.ts にて検証を行っている。 +
+権限がないので上記 key は閲覧できない。 +
+ローカル実行時は ID トークンからユーザ情報が取得できればよいので、代替方式をとる。 +
+
+1. [jwt.io](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDAwMDAwMDA3In0.TStchIJJEnoN-k6ayvX7qwfibpBRlRCtTWXwcajXOQU)にアクセスし、HS256 アルゴリズムでトークンを作成する
+2. VERIFY SIGNATURE の your-256-bit-secret には`.env`の REFRESH_TOKEN_PRIVATE_KEY を指定する
+3. PAYLOAD の sub にユーザ ID を指定する
+4. Encoded の中身をコピーする
+5. jwt.strategy.ts の algorithms を RS256 から HS256 に変更してから起動する
+6. リクエストヘッダーの X-Authorization に 4.でコピーした ID トークンを設定する
+
+なお開発初期フェーズで jwt トークンの実装が全くされてない状態の場合は、ID トークンの検証と認可検証、の 2 個の Guard をコメントアウトして開発を始めるのが良い。
+
+main.ts:L35-40 付近
+
+[source, typescript]
+----
+// app.useGlobalGuards(
+//   new JwtAuthGuard(app.get(Reflector)),
+//   new RequireRoleGuard(app.get(Reflector)),
+// );
+----
+
+これにより Controller のルーティングメソッドに `@Public()` をつけなくても 401 Unauthorized が発生しなくなるが、 `@User() user: UserInfoDto` にてログイン済のユーザ情報も受け取れなくるため、開発用に一時的に固定ユーザ情報を埋め込むなど工夫が必要となる。
+
+以下、Controller の例:Guard コメントアウトにより `@RequireRole()` による認可検証がスキップされ、 `@User() user` パラメータが null となりユーザ情報が受け取れなくなる。
+
+[source, typescript]
+----
+// POST お知らせ登録
+@Post('add')
+@RequireRole(Role.InformationCreatable)
+public async add(@Body() bodyParams: InformationAddRequestDto, @User() user: UserInfoDto): Promise<void> {
+  await this.informationService.add(bodyParams, user);
+}
+----
+
+==== ストレージアクセス
+
+Google Cloud Storageへのアクセスを "@google-cloud/storage" ライブラリにて実現している。AWS S3なども同様に実装可能。
+
+Storage へのファイルアップロードはフロントの javascript から Temp バケットに直接アップロードを行い、そのファイル名(UUID)を登録 API の Request パラメータで受け取り、正式バケットへの移動を行なっている。フロント側の登録キャンセル操作などで Temp バケットにゴミファイルが残るため Cloud Storage の設定にて自動クリーンナップを行なっている。
+
+Storage からのファイルダウンロードはデータ取得 API にて署名付き URL を発行して（有効期限 5 分間）その URL を含んだ Response を返し、フロント側から署名付き URL にて直接ファイルをダウンロードさせている。これにより不正なダウンロードを防いでいる。
+
+NOTE: 実装：/src/resources/repositories/information.repository.ts
+
+=== Cloud SQL
+
+Cloud Run へデプロイした際は PostgresSQL(Cloud SQL)へはプライベート IP で接続するが、ローカル PC から GCP 開発環境の Cloud SQL へ接続する際はパブリック IP で接続する必要があるため、GCP 開発環境の Cloud SQL はパブリック IP を設定し、開発者の IP アドレスのみ許可するように設定する。
+
+=== AWS
+
+==== Fargate へのデプロイ
+
+https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/ecs-exec.html[AWS Toolkit for VS Code] を利用する。
+
+TODO:
+
+=== Azure
+
+==== Azure Container Instancesへのデプロイ
+
+TODO:
+
+== Tips
+
+=== OpenAPI定義からNest.jsのAPI自動生成
+
+OpenAPI 定義をすでに別システムで作っている場合は、定義から NestJS の API を自動生成することができる。
+ただし完全な出力は難しいため、適宜修正を行うこと。
+
+[source, bash]
+----
+$ pnpm run openapi-gen -- -i {OpenAPIの定義が置いてあるパス}/base.yaml -output ./generated -g typescript-nestjs
+----
+
+=== パフォーマンスチューニング
+
+基本事項として、当アーキのNest.jsはExpress.jsを基盤として動作している。そのため、 https://expressjs.com/ja/advanced/best-practice-performance.html[Express.jsの公式チューニングガイド] はそのまま利用できる。
+
+==== 基本的に知っておく事項
+
+- 同期（ブロッキング）関数を利用しない
+- 巨大な構造体ファイル（Json, Yaml, Xml）を扱わない（巨大なレスポンスを返す場合も同様）
+- 長い（ex:10,000件以上）ループ処理（for, while）を扱わない
+- Node.jsは最新バージョンを利用する
+- ファイルディスクリプタ数上限を65535にする
+
+==== レスポンスのgzip圧縮
+
+基本的にこのアーキテクチャはgzip化を標準で行ってはいない。 +
+https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-gzip-compression-decompression.html[API Gateway] などのProxyレイヤーで実施する想定である。 +
+難しい場合は、必要に応じて https://ashwin9798.medium.com/nginx-with-docker-and-node-js-a-beginners-guide-434fe1216b6b[コンテナイメージにNginxを追加] し、Nginx側でレスポンスをgzip圧縮する。 +
+https://docs.nestjs.com/techniques/compression[Nest.jsでも可能] であるが、ブロッキング処理となるので注意。
+
+==== メモリリークの確認
+
+`pnpm run build:dev` 後、 `pnpm run start:inspect` を行うことで、 https://nodejs.org/en/docs/guides/debugging-getting-started[Node.js公式のインスペクタ] が立ち上がる。 +
+更に詳しい解析を行いたい場合、 https://techtldr.com/simple-guide-to-finding-a-javascript-memory-leak-in-node-js/[3点ヒープダンプ法] を試すこと。
+
+==== ブロッキング処理の検出
+
+https://github.com/naugtur/blocked-at[blocked-at] を利用することで、ブロッキングされている処理を検出できる。 +
+参照しているサードパーティnpmが原因の場合もある。

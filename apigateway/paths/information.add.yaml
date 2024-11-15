@@ -1,0 +1,66 @@
+options:
+  operationId: "options_information_add"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+post:
+  tags:
+  - "information"
+  summary: "お知らせ登録"
+  operationId: "post_information_add"
+  description: "お知らせを新規登録する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "body"
+    in: "body"
+    schema:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+        content:
+          type: "string"
+        category:
+          type: "array"
+          items:
+            type: "string"
+        departmentId:
+          type: "string"
+        departmentName:
+          type: "string"
+        isDraft:
+          type: "boolean"
+        deliveryAt:
+          type: "string"
+          format: "date-time"
+        attachmentList:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              attachmentTitle:
+                type: "string"
+              attachmentData:
+                type: "string"
+                format: "byte"
+        deliveryUserList:
+          type: "array"
+          items:
+            type: "string"
+  responses:
+    '200':
+      description: "A successful response"

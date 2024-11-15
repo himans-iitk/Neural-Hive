@@ -1,0 +1,41 @@
+options:
+  operationId: "options_information_delete"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+post:
+  tags:
+  - "information"
+  summary: "お知らせ削除"
+  operationId: "post_information_delete"
+  description: "お知らせを削除する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "A successful response"

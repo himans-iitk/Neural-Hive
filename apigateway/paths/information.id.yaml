@@ -1,0 +1,97 @@
+options:
+  operationId: "options_information_detail"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+get:
+  tags:
+  - "information"
+  summary: "お知らせ詳細取得"
+  operationId: "get_information_detail"
+  description: "お知らせ詳細を返却する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "A successful response"
+      schema:
+        properties:
+          id:
+            type: "integer"
+            format: "int64"
+          title:
+            type: "string"
+          content:
+            type: "string"
+          departmentId:
+            type: "string"
+          departmentName:
+            type: "string"
+          isDraft:
+            type: "boolean"
+          deliveryAt:
+            type: "string"
+            format: "date-time"
+          registeredBy:
+            type: "string"
+          updatedBy:
+            type: "string"
+          registeredName:
+            type: "string"
+          updatedName:
+            type: "string"
+          category:
+            type: "array"
+            items:
+              type: "object"
+              properties:
+                categoryId:
+                  type: "string"
+                categoryName:
+                  type: "string"
+          readCount:
+            type: "integer"
+            format: "int64"
+          deliveryCount:
+            type: "integer"
+            format: "int64"
+          deliveryUserList:
+                  type: "array"
+                  items:
+                    type: "string"
+          attachmentList:
+                  type: "array"
+                  items:
+                    type: "object"
+                    properties:
+                      attachmentId:
+                        type: "string"
+                      attachmentTitle:
+                        type: "string"
+                      attachmentUrl:
+                        type: "string"

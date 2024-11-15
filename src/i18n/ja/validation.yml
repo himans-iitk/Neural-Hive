@@ -1,0 +1,5 @@
+NOT_EMPTY: '{property} は必須です'
+INVALID_EMAIL: '正しいメールアドレスを入力してください'
+INVALID_BOOLEAN: '{property} はtrue/false以外の値が入っています'
+MIN: '{property} with value: "{value}" needs to be at least {constraints.0}, ow and {message}'
+MAX: '{property} with value: "{value}" needs to be less than {constraints.0}, ow and {message}'

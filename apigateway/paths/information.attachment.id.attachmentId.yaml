@@ -1,0 +1,55 @@
+options:
+  operationId: "options_information_attachment"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  - name: "attachmentId"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+get:
+  tags:
+  - "information"
+  summary: "ファイルURL取得"
+  operationId: "post_information_attachment"
+  description: "お知らせに添付されているファイルの署名付きURLを発行し返却する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  - name: "attachmentId"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "A successful response"
+      schema:
+        properties:
+          url:
+            type: "string"

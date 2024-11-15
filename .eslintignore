@@ -1,0 +1,7 @@
+*spec.ts
+dist/**
+node_modules/**
+coverage/**
+jest.config.js
+apigateway
+build

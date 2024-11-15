@@ -1,0 +1,82 @@
+options:
+  operationId: "options_information_edit"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+post:
+  tags:
+  - "information"
+  summary: "お知らせ更新"
+  operationId: "post_information_edit"
+  description: "お知らせを更新する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "id"
+    in: "path"
+    required: true
+    type: "integer"
+    format: "int64"
+  - name: "body"
+    in: "body"
+    schema:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+        content:
+          type: "string"
+        category:
+          type: "array"
+          items:
+            type: "string"
+        departmentId:
+          type: "string"
+        departmentName:
+          type: "string"
+        isDraft:
+          type: "boolean"
+        deliveryAt:
+          type: "string"
+          format: "date-time"
+        attachmentList:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              attachmentTitle:
+                type: "string"
+              attachmentData:
+                type: "string"
+                format: "byte"
+        attachmentIdDeletedList:
+          type: "array"
+          items:
+            type: "integer"
+            format: "int64"
+        deliveryUserList:
+          type: "array"
+          items:
+            type: "string"
+  responses:
+    '200':
+      description: "A successful response"

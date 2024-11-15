@@ -1,0 +1,108 @@
+options:
+  operationId: "options_information_list"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+get:
+  tags:
+  - "information"
+  summary: "お知らせ一覧取得"
+  operationId: "get_information_list"
+  description: "お知らせ一覧を返却する"
+  security:
+    - auth_access: []
+  parameters:
+  - name: "page"
+    in: "query"
+    required: true
+    type: "integer"
+    format: "int64"
+    description: "1スタート"
+  - name: "count"
+    in: "query"
+    required: true
+    type: "integer"
+    format: "int64"
+    description: "0以上をセット"
+  - name: "keyword"
+    in: "query"
+    type: "array"
+    items:
+      type: "string"
+  - name: "createStatus"
+    in: "query"
+    required: true
+    type: "integer"
+    format: "int64"
+    description: "0:すべて　1:自分　2:所属部署"
+  - name: "status"
+    in: "query"
+    required: true
+    type: "integer"
+    format: "int64"
+    description: "0:すべて　1:下書き　2:下書き以外"
+  responses:
+    '200':
+      description: "A successful response"
+      schema:
+        properties:
+          totalCount:
+            type: "integer"
+            format: "int64"
+          informationList:
+            type: "array"
+          items:
+            type: "object"
+            properties:
+              id:
+                type: "integer"
+                format: "int64"
+              title:
+                type: "string"
+              departmentId:
+                type: "string"
+              departmentName:
+                type: "string"
+              isDraft:
+                type: "boolean"
+              deliverAt:
+                type: "string"
+                format: "date-time"
+              registeredBy:
+                type: "string"
+              registeredName:
+                type: "string"
+              categoryList:
+                type: "array"
+                items:
+                  type: "object"
+                  properties:
+                    categoryId:
+                      type: "string"
+                    categoryName:
+                      type: "string"
+    '401':
+      description: "Unauthorized"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+          default: "https://dev.xxxxx.accenture.com"
+        Access-Control-Allow-Methods:
+          type: "string"
+          default: "GET, POST, OPTIONS"
+        Access-Control-Allow-Headers:
+          type: "string"
+          default: "Origin, Content-Type, Language, X-Authorization, Authorization, Version"

@@ -1,0 +1,36 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_IMAGE_NAME}', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_IMAGE_NAME}']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - teres-app-api
+      - --image=${_IMAGE_NAME}
+      - --region=asia-northeast1
+      - --port=8080
+      - --vpc-connector=vpc-connecter
+      - --set-env-vars=DATABASE_NAME=teikyo_research
+      - --set-env-vars=DATABASE_HOST=192.168.1.3
+      - --set-env-vars=DATABASE_USER=postgres
+      - --set-env-vars=DATABASE_PORT=5432
+      - --set-env-vars=DATABASE_TABLE_SCHEMA=prd
+      - --set-env-vars=TIMEOUT_MS=25000
+      - --set-secrets=DATABASE_PASSWORD=teres-sql-pass-sm:latest
+
+# ユーザー定義変数
+substitutions:
+  _IMAGE_NAME: asia-northeast1-docker.pkg.dev/teres-project-prd/teres-frontend-dockerfiles/teres-app-api:latest
+
+# このビルドで生成されるdocker imageを指定
+images:
+  - ${_IMAGE_NAME}
+
+# ビルドのタイムアウト時間
+timeout: 3600s
+
+options:
+  logging: CLOUD_LOGGING_ONLY

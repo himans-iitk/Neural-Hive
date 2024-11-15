@@ -1,0 +1,60 @@
+swagger: '2.0'
+info:
+  title: "XXXXX API 開発環境"
+  description: "APIGateway for XXXXX"
+  version: 1.0.0
+host: "api.dev.XXXXX.accenture.com"
+schemes:
+  - "https"
+produces:
+  - "application/json"
+x-google-backend:
+  address: "https://XXXXX.a.run.app"
+  deadline: 25.0
+securityDefinitions:
+  auth_access:
+    authorizationUrl: "https://"
+    flow: "implicit"
+    type: "oauth2"
+    x-google-issuer: "xxxxxxxxxx-access-token-sa@xxxxxxxxxx.iam.gserviceaccount.com"
+    x-google-audiences: "https://xxxxxxxxxx.an.gateway.dev"
+    x-google-jwks_uri: "https://www.googleapis.com/robot/v1/metadata/x509/xxxxxxxxxx-access-token-sa@xxxxxxxxxx.iam.gserviceaccount.com"
+  auth_refresh:
+    authorizationUrl: "https://"
+    flow: "implicit"
+    type: "oauth2"
+    x-google-issuer: "xxxxxxxxxx-refresh-token-sa@xxxxxxxxxx.iam.gserviceaccount.com"
+    x-google-audiences: "https://xxxxxxxxxx.an.gateway.dev"
+    x-google-jwks_uri: "https://www.googleapis.com/robot/v1/metadata/x509/xxxxxxxxxx-refresh-token-sa@xxxxxxxxxx.iam.gserviceaccount.com"
+tags:
+- name: "health"
+- name: "login"
+- name: "account"
+- name: "information"
+paths:
+  /health:
+    $ref: ./paths/health.yaml
+  /login:
+    $ref: ./paths/login.yaml
+  /token/refresh:
+    $ref: ./paths/token.refresh.yaml
+  /token/storage:
+    $ref: ./paths/token.storage.yaml
+  /account:
+    $ref: ./paths/account.yaml
+  /information:
+    $ref: ./paths/information.yaml
+  /information/add:
+    $ref: ./paths/information.add.yaml
+  /information/edit/{id}:
+    $ref: ./paths/information.edit.id.yaml
+  /information/{id}:
+    $ref: ./paths/information.id.yaml
+  /information/delete/{id}:
+    $ref: ./paths/information.delete.id.yaml
+  /information/attachment/{id}/{attachmentId}:
+    $ref: ./paths/information.attachment.id.attachmentId.yaml
+definitions:
+  Empty:
+    type: "object"
+    title: "Empty Schema"

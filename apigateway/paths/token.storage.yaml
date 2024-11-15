@@ -1,0 +1,34 @@
+options:
+  operationId: "options_token_storage"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+post:
+  tags:
+  - "login"
+  summary: "ファイルアップロード用のトークン作成"
+  operationId: "get_token_storage"
+  description: "ファイルアップロード用のトークン作成"
+  security:
+    - auth_access: []
+  responses:
+    '200':
+      description: "A successful response"
+      schema:
+        type: "object"
+        properties:
+          storageToken:
+            type: "string"

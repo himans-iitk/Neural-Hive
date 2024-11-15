@@ -1,0 +1,27 @@
+options:
+  operationId: "options_health"
+  consumes:
+    - application/json
+  produces:
+    - application/json
+  responses:
+    '200':
+      description: "200 response"
+      schema:
+        $ref: "#/definitions/Empty"
+      headers:
+        Access-Control-Allow-Origin:
+          type: "string"
+        Access-Control-Allow-Methods:
+          type: "string"
+        Access-Control-Allow-Headers:
+          type: "string"
+get:
+  tags:
+  - "health"
+  summary: "ヘルスチェック"
+  operationId: "get_health"
+  description: "ヘルスチェック"
+  responses:
+    '200':
+      description: "A successful response"

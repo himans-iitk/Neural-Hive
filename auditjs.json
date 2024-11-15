@@ -1,0 +1,8 @@
+{
+  "ignore": [
+    {
+      "id": "CVE-2019-18413",
+      "reason": "以下のワークアラウンドで対応。 https://github.com/nestjs/nest/issues/8562 "
+    }
+  ]
+}

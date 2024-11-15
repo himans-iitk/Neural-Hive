@@ -1,0 +1,52 @@
+options:
+    operationId: "options_account"
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    responses:
+      '200':
+        description: "200 response"
+        schema:
+          $ref: "#/definitions/Empty"
+        headers:
+          Access-Control-Allow-Origin:
+            type: "string"
+          Access-Control-Allow-Methods:
+            type: "string"
+          Access-Control-Allow-Headers:
+            type: "string"
+get:
+  tags:
+  - "account"
+  summary: "アカウント情報取得"
+  operationId: "get_account"
+  description: "ログインしているユーザ情報を返却"
+  security:
+    - auth_access: []
+  responses:
+    '200':
+      description: "A successful response"
+      schema:
+        type: "object"
+        properties:
+          employeeNum:
+            type: "string"
+          employeeName:
+            type: "string"
+          organizationId:
+            type: "string"
+          organizationName:
+            type: "integer"
+            format: "int64"
+          authorityList :
+            type: "object"
+            properties:
+              menuId:
+                type: "string"
+              isAvailable:
+                type: "boolean"
+                description: "True:可 False:不可。Trueの場合はデータ参照も可能"
+              isCreatable:
+                type: "boolean"
+                description: "True:可 False:不可"
